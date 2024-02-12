@@ -1,6 +1,12 @@
 package main
 
 import (
+	"fmt"
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/widget"
 	"image"
 	"image/color"
 	"image/draw"
@@ -8,12 +14,18 @@ import (
 	"math/rand"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
+
+type User struct {
+	ID       uint `gorm:"primarykey"`
+	Name     string
+	Password string
+	Width    int
+	Height   int
+	Alive    int
+}
 
 type cell struct {
 	alive bool
@@ -27,9 +39,7 @@ type grid struct {
 	cells      []cell
 }
 
-func init_grid() grid {
-	var width = 50
-	var height = 50
+func init_grid(width int, height int, coord_count int) grid {
 
 	var grid = grid{
 		width:      width,
@@ -39,9 +49,25 @@ func init_grid() grid {
 	}
 
 	for i := 0; i < height*width; i++ {
-		grid.cells[i] = cell{alive: rand.Intn(2) == 1}
+		grid.cells[i] = cell{alive: false}
 		grid.next_cells[i] = cell{alive: false}
 	}
+
+	current_count_alive := 0
+	retry_count := 0
+	for current_count_alive < coord_count {
+		c := rand.Intn(width * height)
+		if grid.cells[c].alive {
+			retry_count++
+			continue
+		}
+		grid.cells[c].alive = true
+		current_count_alive++
+		if retry_count > 100 {
+			break
+		}
+	}
+
 	return grid
 }
 
@@ -104,11 +130,19 @@ func Update(grid grid, image *canvas.Raster) {
 	Update(grid, image)
 }
 
-func main() {
-	app := app.New()
-	w := app.NewWindow("Test")
+func init_db() *gorm.DB {
+	db, err := gorm.Open(sqlite.Open("gol.db"), &gorm.Config{})
+	if err != nil {
+		panic("failed to connect database")
+	}
 
-	grid := init_grid()
+	db.AutoMigrate(&User{})
+	db.Create(&User{ID: 1, Password: "123456", Name: "23Alive", Width: 50, Height: 50, Alive: 20})
+	db.Create(&User{ID: 2, Password: "123456", Name: "23Alive_big", Width: 100, Height: 100, Alive: 600})
+	return db
+}
+
+func init_grid_canva(grid grid) *canvas.Raster {
 	img := canvas.NewRaster(func(w, h int) image.Image {
 		wRatio := w / grid.width
 		hRatio := h / grid.height
@@ -136,21 +170,77 @@ func main() {
 		}
 		return raster
 	})
+	return img
+}
 
-	go Update(grid, img)
+func main() {
+	db := init_db()
+
+	app := app.New()
+	w := app.NewWindow("Test")
+
+	var user User
+
+	db.Where("name = ?", "23Alive_big").First(&user)
+
+	grid := init_grid(user.Width, user.Height, user.Alive)
+
+	grid_canva := init_grid_canva(grid)
+
+	board := container.NewBorder(
+		container.NewHBox(
+			widget.NewButton("Test", func() {}),
+			widget.NewButton("TOTO", func() {}),
+		),
+		nil,
+		nil,
+		nil,
+		grid_canva,
+	)
+
+	go Update(grid, grid_canva)
 
 	title := widget.NewLabel("Game of Life")
 	title.Alignment = fyne.TextAlignCenter
 
-	content := container.NewBorder(
-		title,
-		nil,
-		nil,
-		nil,
-		img,
-	)
-	// change flyne app color background
+	messageInput := widget.NewMultiLineEntry()
 
-	w.SetContent(content)
+	messageForm := &widget.Form{
+		Items: []*widget.FormItem{ // we can specify items in the constructor
+			{Text: "New Message", Widget: messageInput}},
+		OnSubmit: func() { // optional, handle form submission
+			fmt.Println("multiline:", messageInput.Text)
+		},
+	}
+
+	chat := container.NewBorder(
+		widget.NewLabel("Chat"),
+		messageForm,
+		nil,
+		nil,
+		widget.NewList(
+			func() int {
+				return 100
+			},
+			func() fyne.CanvasObject {
+				return widget.NewLabel("Test")
+			},
+			func(i widget.ListItemID, o fyne.CanvasObject) {
+				o.(*widget.Label).SetText(fmt.Sprintf("%d", i))
+			},
+		),
+	)
+
+	grid_layout := container.NewHSplit(board, chat)
+
+	w.SetContent(
+		container.NewBorder(
+			title,
+			nil,
+			nil,
+			nil,
+			grid_layout,
+		),
+	)
 	w.ShowAndRun()
 }
