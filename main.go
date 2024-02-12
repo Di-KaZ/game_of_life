@@ -1,21 +1,27 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
 	"fmt"
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
 	"image"
 	"image/color"
 	"image/draw"
 	"math"
 	"math/rand"
+	"net/url"
 	"time"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/widget"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+
+	"github.com/gorilla/websocket"
 )
 
 type User struct {
@@ -173,7 +179,39 @@ func init_grid_canva(grid grid) *canvas.Raster {
 	return img
 }
 
+func init_ws() *websocket.Conn {
+	addr := flag.String("addr", "127.0.0.1:8080", "http service address")
+	u := url.URL{Scheme: "ws", Host: *addr, Path: "/echo"}
+	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
+type Message struct {
+	Name    string `json:"name"`
+	Content string `json:"content"`
+}
+
+func messageHandler(ws *websocket.Conn, messages *[]Message, list *widget.List) {
+	for {
+		_, message, err := ws.ReadMessage()
+		if err != nil {
+			fmt.Println("read:", err)
+			return
+		}
+		fmt.Printf("%s\n", message)
+		msg := &Message{}
+		json.Unmarshal(message, msg)
+		*messages = append(*messages, *msg)
+		list.Refresh()
+	}
+}
+
 func main() {
+	messages := []Message{}
+
 	db := init_db()
 
 	app := app.New()
@@ -182,6 +220,9 @@ func main() {
 	var user User
 
 	db.Where("name = ?", "23Alive_big").First(&user)
+
+	ws := init_ws()
+	defer ws.Close()
 
 	grid := init_grid(user.Width, user.Height, user.Alive)
 
@@ -205,30 +246,38 @@ func main() {
 
 	messageInput := widget.NewMultiLineEntry()
 
+	chatMessageList := widget.NewList(
+		func() int {
+			return len(messages)
+		},
+		func() fyne.CanvasObject {
+			return widget.NewLabel("Test")
+		},
+		func(i widget.ListItemID, o fyne.CanvasObject) {
+			msg := messages[i]
+			o.(*widget.Label).SetText(fmt.Sprintf("%s: %s", msg.Name, msg.Content))
+		},
+	)
+
 	messageForm := &widget.Form{
 		Items: []*widget.FormItem{ // we can specify items in the constructor
 			{Text: "New Message", Widget: messageInput}},
 		OnSubmit: func() { // optional, handle form submission
-			fmt.Println("multiline:", messageInput.Text)
+			ws.WriteMessage(websocket.TextMessage, []byte(messageInput.Text))
+			messageInput.Text = ""
+			messageInput.Refresh()
+			chatMessageList.Refresh()
 		},
 	}
+
+	go messageHandler(ws, &messages, chatMessageList)
 
 	chat := container.NewBorder(
 		widget.NewLabel("Chat"),
 		messageForm,
 		nil,
 		nil,
-		widget.NewList(
-			func() int {
-				return 100
-			},
-			func() fyne.CanvasObject {
-				return widget.NewLabel("Test")
-			},
-			func(i widget.ListItemID, o fyne.CanvasObject) {
-				o.(*widget.Label).SetText(fmt.Sprintf("%d", i))
-			},
-		),
+		chatMessageList,
 	)
 
 	grid_layout := container.NewHSplit(board, chat)
