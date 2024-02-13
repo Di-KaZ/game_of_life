@@ -8,8 +8,5 @@ import (
 func main() {
 	db := database.InitDb("game_of_life_users.db")
 
-	server := &socket.WebSocketServer{}
-	defer server.Close()
-
-	socket.InitWebsocketServer(db, server)
+	socket.Serve(db, "localhost:8080")
 }

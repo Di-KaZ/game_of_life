@@ -1,14 +1,9 @@
-package models
+package grid
 
 import (
 	"math/rand"
 	"time"
 )
-
-type Cell struct {
-	Alive bool `json:"alive"`
-	Turns int  `json:"turns"`
-}
 
 type Grid struct {
 	Width     int    `json:"width"`
@@ -16,12 +11,6 @@ type Grid struct {
 	nextCells []Cell `json:"-"`
 	Cells     []Cell `json:"cells"`
 	Paused    bool
-}
-
-type GridConfig struct {
-	Width      int
-	Height     int
-	StartAlive int
 }
 
 func Init(config GridConfig) *Grid {
@@ -101,7 +90,7 @@ func (g *Grid) _23Alive(pos int) {
 	}
 }
 
-func (g *Grid) TogglePause() {
+func (g *Grid) TogglePlay() {
 	g.Paused = !g.Paused
 }
 

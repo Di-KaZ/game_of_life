@@ -2,66 +2,90 @@ package socket
 
 import (
 	"fmt"
-	"gol_back/models"
+	"gol_back/constants"
+	"gol_back/grid"
 	"strconv"
 	"time"
-
-	"gorm.io/gorm"
 )
 
-type ServerContext struct {
-	Db     *gorm.DB
-	Server *WebSocketServer
-	Grid   *models.Grid
-}
+func gen(ctx *ServerContext, Member *ChatMember, arg []string) {
+	var width, height, alive_count int
+	var err error
 
-func newGen(ctx *ServerContext, Member *ChatMember, arg []string) {
 	if len(arg) != 3 {
-		ctx.Server.SendChat(Message{Name: "server", Content: "[ERROR] /newGen width height alive_count"})
-		return
+		goto result_error
 	}
 
-	width, err_w := strconv.Atoi(arg[0])
-	height, err_h := strconv.Atoi(arg[1])
-	alive, err_a := strconv.Atoi(arg[2])
-
-	if err_w != nil || err_a != nil || err_h != nil {
-		ctx.Server.SendChat(Message{Name: "server", Content: "[ERROR] /newGen width height alive_count"})
-		return
+	if width, err = strconv.Atoi(arg[0]); err != nil {
+		goto result_error
 	}
 
-	ctx.Grid.Paused = true
+	if height, err = strconv.Atoi(arg[1]); err != nil {
+		goto result_error
+	}
 
-	ctx.Grid = models.Init(
-		models.GridConfig{
+	if alive_count, err = strconv.Atoi(arg[2]); err != nil {
+		goto result_error
+	}
+
+	// ctx.Grid.Paused = true
+
+	ctx.Grid = grid.Init(
+		grid.GridConfig{
 			Width:      width,
 			Height:     height,
-			StartAlive: alive,
+			StartAlive: alive_count,
 		},
 	)
 
-	ctx.Server.SendState(ctx.Grid)
+	ctx.SendState(ctx.Grid)
 
-	ctx.Server.SendChat(Message{Name: "server", Content: fmt.Sprintf("Requested new grid width:%dm height:%d, alive: %d", ctx.Grid.Width, ctx.Grid.Height, alive)})
+	ctx.SendChat(
+		Message{
+			Name: constants.SERVER_DISPLAY_NAME,
+			Content: fmt.Sprintf(
+				constants.OK_GEN_COMMAND,
+				ctx.Grid.Width,
+				ctx.Grid.Height,
+				alive_count,
+			),
+		})
+
+result_error:
+	ctx.SendChat(
+		Message{
+			Name:    constants.SERVER_DISPLAY_NAME,
+			Content: constants.ERROR_GEN_COMMAND,
+		},
+	)
 }
 
-func togglePlay(ctx *ServerContext, Member *ChatMember, arg []string) {
-	ctx.Grid.TogglePause()
-	ctx.Server.SendChat(Message{Name: "server", Content: "toggled play/pause"})
+func playpause(ctx *ServerContext, Member *ChatMember, arg []string) {
+	ctx.Grid.TogglePlay()
 
-	if !ctx.Grid.Paused {
+	var Content string
+
+	if ctx.Grid.Paused {
+		Content = constants.PAUSED_PLAYPAUSE_COMMAND
 		go ctx.Grid.Loop(time.Second/10, func() {
-			ctx.Server.SendState(ctx.Grid)
+			ctx.SendState(ctx.Grid)
 		})
+	} else {
+		Content = constants.RESUME_PLAYPAUSE_COMMAND
 	}
+
+	ctx.SendChat(Message{
+		Name:    constants.SERVER_DISPLAY_NAME,
+		Content: Content,
+	})
 }
 
 func ping(ctx *ServerContext, Member *ChatMember, arg []string) {
-	ctx.Server.SendChat(Message{Name: "server", Content: "pong"})
+	ctx.SendChat(Message{Name: "server", Content: "pong"})
 }
 
 var Commands = map[string]func(ctx *ServerContext, Member *ChatMember, arg []string){
-	"/newGen":     newGen,
-	"/ping":       ping,
-	"/togglePlay": togglePlay,
+	"/gen":       gen,
+	"/ping":      ping,
+	"/playpause": playpause,
 }
