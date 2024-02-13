@@ -26,7 +26,6 @@ func (s *ServerContext) Close() {
 
 func (s *ServerContext) SendState(grid *grid.Grid) {
 	json, _ := json.Marshal(grid)
-	print(json)
 	for i := range s.StateSub {
 		s.StateSub[i].WriteMessage(websocket.TextMessage, json)
 	}

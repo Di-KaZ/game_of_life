@@ -28,9 +28,7 @@ func gen(ctx *ServerContext, Member *ChatMember, arg []string) {
 		goto result_error
 	}
 
-	// ctx.Grid.Paused = true
-
-	ctx.Grid = grid.Init(
+	ctx.Grid.Reset(
 		grid.GridConfig{
 			Width:      width,
 			Height:     height,
@@ -50,7 +48,7 @@ func gen(ctx *ServerContext, Member *ChatMember, arg []string) {
 				alive_count,
 			),
 		})
-
+	return
 result_error:
 	ctx.SendChat(
 		Message{
@@ -67,11 +65,11 @@ func playpause(ctx *ServerContext, Member *ChatMember, arg []string) {
 
 	if ctx.Grid.Paused {
 		Content = constants.PAUSED_PLAYPAUSE_COMMAND
+	} else {
+		Content = constants.RESUME_PLAYPAUSE_COMMAND
 		go ctx.Grid.Loop(time.Second/10, func() {
 			ctx.SendState(ctx.Grid)
 		})
-	} else {
-		Content = constants.RESUME_PLAYPAUSE_COMMAND
 	}
 
 	ctx.SendChat(Message{

@@ -13,36 +13,41 @@ type Grid struct {
 	Paused    bool
 }
 
-func Init(config GridConfig) *Grid {
+func (g *Grid) Reset(config GridConfig) {
 	cell_count := config.Width * config.Height
-
-	grid := &Grid{
-		Width:     config.Width,
-		Height:    config.Height,
-		Cells:     make([]Cell, cell_count),
-		nextCells: make([]Cell, cell_count),
-		Paused:    true,
-	}
+	g.Paused = true
+	g.Width = config.Width
+	g.Height = config.Height
+	g.Cells = make([]Cell, cell_count)
+	g.nextCells = make([]Cell, cell_count)
 
 	for i := 0; i < cell_count; i++ {
-		grid.Cells[i] = Cell{Alive: false}
-		grid.nextCells[i] = Cell{Alive: false}
+		g.Cells[i] = Cell{Alive: false}
+		g.nextCells[i] = Cell{Alive: false}
 	}
 
 	current_count_alive := 0
 	retry_count := 0
 	for current_count_alive < config.StartAlive {
 		c := rand.Intn(cell_count)
-		if grid.Cells[c].Alive {
+		if g.Cells[c].Alive {
 			retry_count++
 			continue
 		}
-		grid.Cells[c].Alive = true
+		g.Cells[c].Alive = true
 		current_count_alive++
 		if retry_count > 100 {
 			break
 		}
 	}
+
+}
+
+func Init(config GridConfig) *Grid {
+
+	grid := &Grid{}
+
+	grid.Reset(config)
 
 	return grid
 }
@@ -95,7 +100,6 @@ func (g *Grid) TogglePlay() {
 }
 
 func (g *Grid) Loop(rate time.Duration, callback func()) {
-	time.Sleep(rate)
 	for pos := range g.Cells {
 		g._23Alive(pos)
 	}
@@ -103,6 +107,8 @@ func (g *Grid) Loop(rate time.Duration, callback func()) {
 	for i := range g.Cells {
 		g.Cells[i], g.nextCells[i] = g.nextCells[i], g.Cells[i]
 	}
+
+	time.Sleep(rate)
 
 	callback()
 

@@ -52,6 +52,9 @@ func HandleChat(ctx *ServerContext) http.HandlerFunc {
 			// send back the message to everyone
 			ctx.SendChat(Message{Name: member.Name, Content: string(message)})
 			split := strings.Fields(string(message))
+			if len(split) == 0 {
+				return
+			}
 
 			// handle commands if any
 			if command, ok := Commands[split[0]]; ok {
