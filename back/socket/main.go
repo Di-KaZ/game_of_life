@@ -2,6 +2,7 @@ package socket
 
 import (
 	"flag"
+	"gol_back/constants"
 	"gol_back/grid"
 	"log"
 	"net/http"
@@ -16,7 +17,11 @@ import (
 var seed = time.Now().UTC().UnixNano()
 var generator = namegenerator.NewNameGenerator(seed)
 
-var upgrader = websocket.Upgrader{}
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
 
 func HandleBoardState(ctx *ServerContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +68,7 @@ func HandleChat(ctx *ServerContext) http.HandlerFunc {
 					split[1:],
 				)
 			} else if message[0] == '/' {
-				ctx.SendChat(Message{Name: "server", Content: "command not found"})
+				ctx.SendChat(Message{Name: constants.SERVER_DISPLAY_NAME, Content: "command not found"})
 			}
 		}
 	}

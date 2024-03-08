@@ -67,7 +67,7 @@ func playpause(ctx *ServerContext, Member *ChatMember, arg []string) {
 		Content = constants.PAUSED_PLAYPAUSE_COMMAND
 	} else {
 		Content = constants.RESUME_PLAYPAUSE_COMMAND
-		go ctx.Grid.Loop(time.Second/10, func() {
+		go ctx.Grid.Loop(time.Second, func() {
 			ctx.SendState(ctx.Grid)
 		})
 	}
